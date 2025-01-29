@@ -10,8 +10,6 @@ const app = express();
 const server = http.createServer(app);
 const cors = require('cors');
 
-const app = express();
-
 // 1) Allow cross-origin in Express routes (for file uploads, etc.)
 app.use(cors());
 
