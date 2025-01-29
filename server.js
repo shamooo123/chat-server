@@ -9,8 +9,29 @@ const crypto = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
+const express = require('express');
+const http = require('http');
 const cors = require('cors');
-app.use(cors()); // or app.use(cors({ origin: '*' }));
+
+const app = express();
+
+// 1) Allow cross-origin in Express routes (for file uploads, etc.)
+app.use(cors());
+
+// 2) Create HTTP server and bind Socket.IO with its own CORS settings
+const io = socketIO(server, {
+  cors: {
+    origin: "*",        // Or specify your Squarespace domain
+    methods: ["GET", "POST"]
+  }
+});
+
+// 3) Then proceed with your Socket.IO event handling
+io.on('connection', (socket) => {
+  console.log('New client connected');
+  // ...
+});
+
 
 
 app.use(express.json());
