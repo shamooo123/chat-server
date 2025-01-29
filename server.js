@@ -201,7 +201,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 4000;  // fallback to 4000 if no env var
 server.listen(PORT, () => {
   console.log(`Chat server running on port ${PORT}`);
 });
