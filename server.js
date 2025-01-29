@@ -9,6 +9,9 @@ const crypto = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
+const cors = require('cors');
+app.use(cors()); // or app.use(cors({ origin: '*' }));
+
 
 app.use(express.json());
 
