@@ -12,6 +12,8 @@ const cors = require('cors');
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
+app.use('/uploads', express.static('uploads'));
+
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   res.json({ imageUrl: `${serverUrl}/uploads/${req.file.filename}` });
