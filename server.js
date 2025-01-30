@@ -109,10 +109,23 @@ app.post('/register', async (req, res) => {
  * Body: { email, password }
  * Returns: { token, userId, displayName, isModerator }
  */
+a// Modified login endpoint
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Missing email or password' });
+  
+  // Hardcoded admin credentials (store these in environment variables later!)
+  const ADMIN_USER = "your_admin_username";
+  const ADMIN_PASS = "your_admin_password";
+
+  // Check for admin login first
+  if (email === ADMIN_USER && password === ADMIN_PASS) {
+    const token = generateToken();
+    activeTokens.set(token, -1); // Special ID for admin
+    return res.json({ 
+      success: true,
+      token,
+      isModerator: true
+    });
   }
 
   // Find user by email
