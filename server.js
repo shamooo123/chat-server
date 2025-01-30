@@ -22,6 +22,14 @@ app.post('/upload', upload.single('image'), (req, res) => {
 // 1) Allow cross-origin in Express routes (for file uploads, etc.)
 app.use(cors());
 
+socket.on('new_text_message', (data) => {
+  // Handle text message insertion into DB
+});
+
+socket.on('new_image_message', (data) => {
+  // Handle image message insertion into DB
+});
+
 // 2) Create HTTP server and bind Socket.IO with its own CORS settings
 const io = socketIO(server, {
   cors: {
