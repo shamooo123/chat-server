@@ -9,6 +9,13 @@ const crypto = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const cors = require('cors');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+
+app.post('/upload', upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ imageUrl: `${serverUrl}/uploads/${req.file.filename}` });
+});
 
 // 1) Allow cross-origin in Express routes (for file uploads, etc.)
 app.use(cors());
