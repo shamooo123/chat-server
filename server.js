@@ -41,7 +41,32 @@ const io = socketIO(server, {
 // 3) Then proceed with your Socket.IO event handling
 io.on('connection', (socket) => {
   console.log('New client connected');
-  // ...
+
+  // Authentication middleware
+  socket.on('authenticate', (data) => {
+    const token = data.token;
+    
+    if (!token || !activeTokens.has(token)) {
+      socket.emit('auth_error', 'Invalid token');
+      socket.disconnect();
+      return;
+    }
+
+    // Store user info on the socket
+    socket.userId = activeTokens.get(token);
+    
+    // Special case: admin user has ID -1
+    if (socket.userId === -1) {
+      socket.isModerator = true;
+    }
+
+    // Load chat history
+    db.all(`SELECT * FROM messages`, (err, rows) => {
+      socket.emit('chat_history', rows);
+    });
+  });
+
+  // Rest of your socket handlers...
 });
 
 
