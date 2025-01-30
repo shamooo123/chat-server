@@ -1,94 +1,57 @@
-// server.js
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const db = require('./db');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const cors = require('cors');
-const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
 
-app.use('/uploads', express.static('uploads'));
-
-app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ imageUrl: `${serverUrl}/uploads/${req.file.filename}` });
-});
-
-// 1) Allow cross-origin in Express routes (for file uploads, etc.)
-app.use(cors());
-
-socket.on('new_text_message', (data) => {
-  // Handle text message insertion into DB
-});
-
-socket.on('new_image_message', (data) => {
-  // Handle image message insertion into DB
-});
-
-// 2) Create HTTP server and bind Socket.IO with its own CORS settings
-const io = socketIO(server, {
-  cors: {
-    origin: "*",        // Or specify your Squarespace domain
-    methods: ["GET", "POST"]
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
   }
 });
+const upload = multer({ storage });
 
-// 3) Then proceed with your Socket.IO event handling
-io.on('connection', (socket) => {
-  console.log('New client connected');
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
 
-  // Authentication middleware
-  socket.on('authenticate', (data) => {
-    const token = data.token;
-    
-    if (!token || !activeTokens.has(token)) {
-      socket.emit('auth_error', 'Invalid token');
-      socket.disconnect();
-      return;
-    }
-
-    // Store user info on the socket
-    socket.userId = activeTokens.get(token);
-    
-    // Special case: admin user has ID -1
-    if (socket.userId === -1) {
-      socket.isModerator = true;
-    }
-
-    // Load chat history
-    db.all(`SELECT * FROM messages`, (err, rows) => {
-      socket.emit('chat_history', rows);
-    });
-  });
-
-  // Rest of your socket handlers...
-});
-
-
-
+// Middleware
+app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
-/**
- * In-memory store for active tokens: Map token -> userId
- */
+// In-memory store for active tokens: Map token -> userId
 const activeTokens = new Map();
 
-/**
- * Utility: generate a random token
- */
+// Utility: generate a random token
 function generateToken() {
   return crypto.randomBytes(24).toString('hex');
 }
 
-/**
- * POST /register
- * Body: { email, password, displayName }
- */
+// File upload endpoint
+app.post('/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  res.json({
+    imageUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+  });
+});
+
+// Register endpoint
 app.post('/register', async (req, res) => {
   try {
     const { email, password, displayName } = req.body;
@@ -105,7 +68,7 @@ app.post('/register', async (req, res) => {
       if (row) {
         return res.status(400).json({ error: 'Email already registered' });
       }
-      
+
       // Hash the password
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash(password, saltRounds);
@@ -129,15 +92,10 @@ app.post('/register', async (req, res) => {
   }
 });
 
-/**
- * POST /login
- * Body: { email, password }
- * Returns: { token, userId, displayName, isModerator }
- */
-a// Modified login endpoint
+// Login endpoint
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
-  
+
   // Hardcoded admin credentials (store these in environment variables later!)
   const ADMIN_USER = "your_admin_username";
   const ADMIN_PASS = "your_admin_password";
@@ -146,14 +104,14 @@ app.post('/login', (req, res) => {
   if (email === ADMIN_USER && password === ADMIN_PASS) {
     const token = generateToken();
     activeTokens.set(token, -1); // Special ID for admin
-    return res.json({ 
+    return res.json({
       success: true,
       token,
       isModerator: true
     });
   }
 
-  // Find user by email
+  // Regular user login
   db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
     if (err) {
       console.error(err);
@@ -182,13 +140,19 @@ app.post('/login', (req, res) => {
   });
 });
 
-/**
- * Socket.IO handling
- */
+// Socket.IO setup
+const io = socketIO(server, {
+  cors: {
+    origin: "*", // Or specify your Squarespace domain
+    methods: ["GET", "POST"]
+  }
+});
+
+// Socket.IO event handling
 io.on('connection', (socket) => {
   console.log('New client connected');
 
-  // When the client sends 'authenticate', it includes { token }
+  // Authentication middleware
   socket.on('authenticate', (data) => {
     const { token } = data;
     if (!token || !activeTokens.has(token)) {
@@ -199,9 +163,9 @@ io.on('connection', (socket) => {
     const userId = activeTokens.get(token);
     socket.userId = userId;
 
-    // Send chat history
+    // Load chat history
     db.all(`
-      SELECT m.id AS messageId, m.text, m.timestamp, u.displayName
+      SELECT m.id AS messageId, m.text, m.imageUrl, m.timestamp, u.displayName
       FROM messages m
       JOIN users u ON m.userId = u.id
       ORDER BY m.id ASC
@@ -214,12 +178,10 @@ io.on('connection', (socket) => {
     });
   });
 
-  // new_message
-  socket.on('new_message', (data) => {
-    if (!socket.userId) {
-      return; // user not authenticated
-    }
-    const text = data.text || '';
+  // Handle text messages
+  socket.on('new_text_message', (data) => {
+    if (!socket.userId) return; // User not authenticated
+    const { text, displayName } = data;
     const timestamp = new Date().toISOString();
 
     db.run(
@@ -230,26 +192,43 @@ io.on('connection', (socket) => {
           console.error(err);
           return;
         }
-        const messageId = this.lastID;
-        // Grab user displayName to broadcast
-        db.get(`SELECT displayName FROM users WHERE id = ?`, [socket.userId], (err, row) => {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          const newMsg = {
-            messageId,
-            text,
-            timestamp,
-            displayName: row.displayName
-          };
-          io.emit('chat_message', newMsg);
-        });
+        const newMsg = {
+          id: this.lastID,
+          text,
+          timestamp,
+          displayName
+        };
+        io.emit('chat_message', newMsg);
       }
     );
   });
 
-  // delete_message
+  // Handle image messages
+  socket.on('new_image_message', (data) => {
+    if (!socket.userId) return; // User not authenticated
+    const { imageUrl, displayName } = data;
+    const timestamp = new Date().toISOString();
+
+    db.run(
+      `INSERT INTO messages (userId, imageUrl, timestamp) VALUES (?, ?, ?)`,
+      [socket.userId, imageUrl, timestamp],
+      function (err) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        const newMsg = {
+          id: this.lastID,
+          imageUrl,
+          timestamp,
+          displayName
+        };
+        io.emit('chat_message', newMsg);
+      }
+    );
+  });
+
+  // Handle message deletion
   socket.on('delete_message', (data) => {
     if (!socket.userId) return;
     const { messageId } = data;
@@ -258,7 +237,7 @@ io.on('connection', (socket) => {
     db.get(`SELECT isModerator FROM users WHERE id = ?`, [socket.userId], (err, row) => {
       if (err || !row) return;
       if (row.isModerator === 1) {
-        // user is moderator -> delete message
+        // User is moderator -> delete message
         db.run('DELETE FROM messages WHERE id = ?', [messageId], (delErr) => {
           if (delErr) {
             console.error(delErr);
@@ -275,7 +254,8 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 4000;  // fallback to 4000 if no env var
+// Start the server
+const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Chat server running on port ${PORT}`);
 });
