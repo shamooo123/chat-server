@@ -18,12 +18,13 @@ db.serialize(() => {
 
   db.run(`
     CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER,
-      text TEXT,
-      timestamp TEXT,
-      FOREIGN KEY(userId) REFERENCES users(id)
-    )
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  userId INTEGER,
+  text TEXT,
+  imageUrl TEXT,
+  timestamp TEXT,
+  FOREIGN KEY(userId) REFERENCES users(id)
+)
   `);
 });
 
